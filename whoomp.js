@@ -52,7 +52,7 @@ async function sendRawHistoricalData() {
     }
 }
 
-async function performAuth(debug = false) {
+async function performAuth(debug = true) {
   if (debug) console.groupCollapsed('[AUTH] performAuth');
 
   // Step A – open a session
