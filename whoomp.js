@@ -26,6 +26,31 @@ const metaQueue = new AsyncQueue();
 const historicalDataLogger = new FileStreamHandler("historical_data_stream.bin");
 
 /**
+ * Send raw historical data request command
+ * This command was discovered through bWanShiTong's research
+ * and reliably retrieves the last few minutes of historical data
+ */
+async function sendRawHistoricalData() {
+    if (!characteristics.cmdToStrap) {
+        console.error(`error: please connect to the device first`);
+        return;
+    }
+
+    try {
+        // This specific raw command has been found to work reliably
+        // Source: bWanShiTong/reverse-engineering-whoop
+        const rawCommand = new Uint8Array([
+            0xaa, 0x08, 0x00, 0xa8, 0x23, 0x0e, 0x16, 0x00, 0x11, 0x47, 0xc5, 0x85
+        ]);
+        
+        await characteristics.cmdToStrap.writeValue(rawCommand);
+        ui.showNotification("Raw historical data request sent!");
+    } catch (error) {
+        console.error(`error sending raw command: ${error.message}`);
+    }
+}
+
+/**
  * Connect to the WHOOP device and setup notifications
  */
 async function connectToWhoop() {
