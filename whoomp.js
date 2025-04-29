@@ -248,7 +248,11 @@ function handleCmdNotification(event) {
     let dataView = new DataView(packet.data.buffer, packet.data.byteOffset, packet.data.byteLength);
 
 if (packet.type === PacketType.COMMAND) {
+// Accept both legacy (0x23) and new (0x24) response types
+if (packet.type === PacketType.COMMAND ||
+packet.type === PacketType.COMMAND_RESPONSE) {
 cmdResponseQueue.enqueue(packet);
+}
 }
     if (packet.cmd == CommandNumber.GET_BATTERY_LEVEL) {
         let rawBatteryLevel = dataView.getUint16(2, true); // Little-endian
