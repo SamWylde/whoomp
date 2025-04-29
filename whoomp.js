@@ -2,6 +2,7 @@ import { PacketType, MetadataType, EventNumber, CommandNumber, WhoopPacket } fro
 import { AsyncQueue } from "./queue.js";
 import * as ui from "./ui.js";
 import { FileStreamHandler } from "./file.js";
+import * as aesCmac from './crypto/aesCmac.js';   // any CMAC lib
 
 const WHOOP_SERVICE = "61080001-8d6d-82b8-614a-1c8cb0f8dcc6";
 const WHOOP_CHAR_CMD_TO_STRAP = "61080002-8d6d-82b8-614a-1c8cb0f8dcc6";
@@ -48,6 +49,24 @@ async function sendRawHistoricalData() {
     } catch (error) {
         console.error(`error sending raw command: ${error.message}`);
     }
+}
+
+async function performAuth() {
+  /* Step A */
+  await writeCmd(CommandNumber.START_SESSION, []);
+  /* Step B */
+  const challPkt = await cmdResponseQueue.dequeue();
+  const rand     = challPkt.data.slice(0,16);
+
+  /* build key from serial */
+  const dis         = await server.getPrimaryService('device_information');
+  const serialChar  = await dis.getCharacteristic('serial_number_string');
+  const serialStr   = new TextDecoder().decode(await serialChar.readValue());
+  const key         = new TextEncoder().encode(serialStr.slice(0,16).split('').reverse().join(''));
+
+  /* Step C */
+  const r          = new Uint8Array(await aesCmac.cmac(key, rand));
+  await writeCmd(CommandNumber.SESSION_RESPONSE, r);
 }
 
 async function processMetadataPacket(packet) {
@@ -115,6 +134,8 @@ async function connectToWhoop() {
         await characteristics.cmdFromStrap.startNotifications();
         await characteristics.eventsFromStrap.startNotifications();
         await characteristics.dataFromStrap.startNotifications();
+
+        await performAuth();     // << IMPORTANT – DO NOT MOVE OR REMOVE
 
         characteristics.cmdFromStrap.addEventListener('characteristicvaluechanged', handleCmdNotification);
         characteristics.eventsFromStrap.addEventListener('characteristicvaluechanged', handleEventsNotification);
