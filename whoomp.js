@@ -520,6 +520,7 @@ connectButton.addEventListener('click', async () => {
 
 document.getElementById('heartButton').addEventListener('click', sendToggleRealtime);
 document.getElementById('downloadButton').addEventListener('click', downloadHistory);
+document.getElementById('rawHistoryButton').addEventListener('click', sendRawHistoricalData);
 
 document.getElementById('getClockButton').addEventListener('click', sendGetClock);
 document.getElementById('alarmButton').addEventListener('click', sendAlarm);
