@@ -3,12 +3,7 @@ import { AsyncQueue } from "./queue.js";
 import * as ui from "./ui.js";
 import { FileStreamHandler } from "./file.js";
 
-// npm build (ESM)
-import { aesCmac } from 'https://esm.sh/aes-cmac@3.1.0';
-
-// GitHub build (UMD, global `aesCmac`)
-import 'https://cdn.jsdelivr.net/gh/rosek86/aes-cmac/dist/index.umd.js';
-const { aesCmac } = window;
+import { AesCmac } from 'https://esm.sh/aes-cmac@3.1.0?bundle';
 
 const WHOOP_SERVICE = "61080001-8d6d-82b8-614a-1c8cb0f8dcc6";
 const WHOOP_CHAR_CMD_TO_STRAP = "61080002-8d6d-82b8-614a-1c8cb0f8dcc6";
