@@ -118,7 +118,10 @@ async function connectToWhoop() {
     try {
         device = await navigator.bluetooth.requestDevice({
             filters: [{ services: [WHOOP_SERVICE] }],
-            optionalServices: [WHOOP_SERVICE]
+            optionalServices: [
+    WHOOP_SERVICE,
+    0x181E        // Bond Management Service
+  ]
         });
 
         server = await device.gatt.connect();
