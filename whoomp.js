@@ -70,6 +70,20 @@ async function performAuth() {
   await writeCmd(CommandNumber.SESSION_RESPONSE, r);
 }
 
+const cmdResponseQueue = new AsyncQueue();  
+
+async function writeCmd(cmdNumber, payload = []) {
+if (!characteristics.cmdToStrap) {
+throw new Error('cmdToStrap not initialised');
+}
+const pkt = new WhoopPacket(
+PacketType.COMMAND, 0, cmdNumber, new Uint8Array(payload)
+).framedPacket();
+await characteristics.cmdToStrap.writeValue(pkt);
+}
+
+const aesCmac = new AesCmac();
+
 async function processMetadataPacket(packet) {
     // Check if it's a metadata packet
     if (packet.type !== PacketType.METADATA) {
@@ -233,6 +247,9 @@ function handleCmdNotification(event) {
     let packet = WhoopPacket.fromData(value);
     let dataView = new DataView(packet.data.buffer, packet.data.byteOffset, packet.data.byteLength);
 
+if (packet.type === PacketType.COMMAND) {
+cmdResponseQueue.enqueue(packet);
+}
     if (packet.cmd == CommandNumber.GET_BATTERY_LEVEL) {
         let rawBatteryLevel = dataView.getUint16(2, true); // Little-endian
         let batteryLevel = rawBatteryLevel / 10.0;
