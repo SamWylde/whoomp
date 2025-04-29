@@ -648,7 +648,7 @@ const connectButton = document.getElementById('connectButton');
 connectButton.addEventListener('click', async () => {
     if (connectButton.textContent.trim() === 'Connect WHOOP') {
         // Only if this is successful do we want to change over
-        if (await connectToWhoop({ debug: true });) {
+        if (await connectToWhoop({ debug: true })) {
             connectButton.textContent = 'Disconnect';
             connectButton.classList.replace('bg-blue-500', 'bg-red-500');
             connectButton.classList.replace('hover:bg-blue-700', 'hover:bg-red-700');
