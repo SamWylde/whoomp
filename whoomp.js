@@ -50,6 +50,48 @@ async function sendRawHistoricalData() {
     }
 }
 
+async function processMetadataPacket(packet) {
+    // Check if it's a metadata packet
+    if (packet.type !== PacketType.METADATA) {
+        return;
+    }
+    
+    // Based on bWanShiTong's research on metadata packet structure
+    switch(packet.cmd) {
+        case MetadataType.HISTORY_START:
+            console.log("Historical data download started");
+            ui.showNotification("History download started!");
+            break;
+            
+        case MetadataType.HISTORY_END:
+            // Extract trim value from metadata as documented in DECODING
+            const dataView = new DataView(packet.data.buffer);
+            const trim = dataView.getUint32(10, true); // Little-endian, offset 10
+            
+            // Send response with the trim value
+            const responsePacket = new Uint8Array(9);
+            const responseView = new DataView(responsePacket.buffer);
+            responseView.setUint8(0, 1);                  
+            responseView.setUint32(1, trim, true);        
+            responseView.setUint32(5, 0, true);           
+            
+            const pkt = new WhoopPacket(
+                PacketType.COMMAND, 
+                0, 
+                CommandNumber.HISTORICAL_DATA_RESULT, 
+                responsePacket
+            ).framedPacket();
+            
+            await characteristics.cmdToStrap.writeValue(pkt);
+            break;
+            
+        case MetadataType.HISTORY_COMPLETE:
+            console.log("Historical data download complete");
+            ui.showNotification("History download complete!");
+            break;
+    }
+}
+
 /**
  * Connect to the WHOOP device and setup notifications
  */
@@ -227,6 +269,9 @@ function handleDataNotification(event) {
     } else if (packet.type == PacketType.METADATA) {
         // Add to meta queue
         metaQueue.enqueue(packet);
+
+  // Also process with new enhanced handler
+    processMetadataPacket(packet);
     } else if (packet.type == PacketType.HISTORICAL_DATA) {
         console.log(`historical data`);
         historicalDataLogger.streamData(value);
