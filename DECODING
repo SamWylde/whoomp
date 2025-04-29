@@ -1,0 +1,137 @@
+# WHOOP Data Decoding Information
+
+This document provides information about decoding WHOOP data packets based on reverse engineering efforts.
+
+## Packet Structure
+
+WHOOP uses a custom packet format with:
+- A start of frame (SOF) byte: 0xAA
+- A 2-byte length field (little-endian)
+- A CRC8 checksum of the length field
+- A payload comprising:
+  - Type byte
+  - Sequence number byte
+  - Command/event/metadata type byte
+  - Payload data (variable length)
+- A CRC32 checksum of the entire payload (4 bytes)
+
+## Heart Rate Data
+
+### Real-time Heart Rate
+
+Real-time heart rate data is sent via the REALTIME_DATA packet type (40/0x28):
+- Byte 0: Packet type (0x28)
+- Byte 1: Sequence number
+- Byte 2: Unknown (appears to be a sub-type)
+- Bytes 3-6: Unix timestamp (seconds, little-endian)
+- Bytes 7-8: Sub-second timestamp (little-endian)
+- Byte 9: Unknown
+- Byte 10: Heart rate value in BPM
+- Byte 11: Number of RR intervals
+- Bytes 12+: RR intervals (each 2 bytes, little-endian)
+
+### Historical Heart Rate
+
+Historical heart rate data is sent via the HISTORICAL_DATA packet type (47/0x2F):
+- Byte 0: Packet type (0x2F)
+- Byte 1: Sequence number
+- Byte 2: Unknown (appears to be a sub-type)
+- Bytes 3-6: Unix timestamp (seconds, little-endian)
+- Bytes 7-8: Sub-second timestamp (little-endian)
+- Byte 9: Unknown
+- Byte 10: Heart rate value in BPM
+- Byte 11: Number of RR intervals
+- Bytes 12+: RR intervals (each 2 bytes, little-endian)
+
+## Metadata
+
+During historical data transfer, metadata packets are sent to mark the beginning, end, and completion of data transfer:
+
+- HISTORY_START (1): Marks the beginning of historical data
+- HISTORY_END (2): Marks the end of a batch
+- HISTORY_COMPLETE (3): Marks the completion of all historical data
+
+### Example Metadata Packet (HISTORY_END)
+
+```
+aa4c00e8 31 XX 02 00 TIMESTAMP SUBSEC UNK TRIM 0000000000000000
+```
+
+Where:
+- `aa`: Start of frame
+- `4c00`: Length (little-endian)
+- `e8`: CRC8 of length
+- `31`: Packet type (METADATA)
+- `XX`: Sequence number (varies)
+- `02`: HISTORY_END type
+- `TIMESTAMP`: 4-byte Unix timestamp (little-endian)
+- `SUBSEC`: 2-byte sub-second timestamp (little-endian)
+- `UNK`: Unknown 4 bytes
+- `TRIM`: 4-byte value used for pagination (little-endian)
+- `0000000000000000`: Padding or additional data
+- (4 bytes CRC32 at the end)
+
+## Events
+
+Events are sent with packet type 48 (0x30) and include:
+
+- WRIST_ON (9): Triggered when the strap detects it's being worn
+- WRIST_OFF (10): Triggered when the strap detects it's not being worn
+- CHARGING_ON (7): Triggered when charging begins
+- CHARGING_OFF (8): Triggered when charging ends
+- DOUBLE_TAP (14): Triggered when the user double-taps the strap
+
+## Commands
+
+Commands are sent with packet type 35 (0x23) and responses are received with packet type 36 (0x24).
+
+### Important Commands
+
+- GET_BATTERY_LEVEL (26): Retrieves battery level
+- TOGGLE_REALTIME_HR (3): Starts or stops real-time heart rate monitoring
+- GET_CLOCK (11): Retrieves the device's current timestamp
+- REPORT_VERSION_INFO (7): Retrieves firmware version information
+- SEND_HISTORICAL_DATA (22): Initiates historical data download
+- HISTORICAL_DATA_RESULT (23): Sent in response to historical data metadata
+- RUN_ALARM (68): Activates the device alarm
+- RUN_HAPTICS_PATTERN (79): Runs a haptic vibration pattern
+- REBOOT_STRAP (29): Reboots the device
+
+## Checksum Calculation
+
+The checksums are calculated as follows:
+
+1. CRC8 (for length field):
+   - Standard CRC8 algorithm with polynomial 0x07
+
+2. CRC32 (for payload):
+   - Standard CRC32 algorithm with polynomial 0xEDB88320
+
+## Special Commands
+
+### Raw Historical Data Retrieval
+
+To retrieve the last few minutes of historical data, send the following command to the CMD_TO_STRAP characteristic:
+```
+aa0800a8230e16001147c585
+```
+
+This is a raw command that has been observed to work but its exact structure is not fully understood.
+
+## Bluetooth Characteristics
+
+The WHOOP device uses the following characteristics:
+
+- `61080002-8d6d-82b8-614a-1c8cb0f8dcc6` - CMD_TO_STRAP: Used to send commands to the strap (writable)
+- `61080003-8d6d-82b8-614a-1c8cb0f8dcc6` - CMD_FROM_STRAP: Receives command responses from the strap
+- `61080004-8d6d-82b8-614a-1c8cb0f8dcc6` - EVENTS_FROM_STRAP: Receives events from the strap
+- `61080005-8d6d-82b8-614a-1c8cb0f8dcc6` - DATA_FROM_STRAP: Receives data from the strap
+
+## Additional Sensors
+
+The WHOOP device has the following sensors:
+- Heart rate (continuous monitoring)
+- Temperature (measured during sleep)
+- Blood oxygen (SpO2) (measured during sleep)
+
+The method for extracting temperature and SpO2 data is still being investigated.
