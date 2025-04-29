@@ -82,7 +82,7 @@ PacketType.COMMAND, 0, cmdNumber, new Uint8Array(payload)
 await characteristics.cmdToStrap.writeValue(pkt);
 }
 
-const aesCmac = new AesCmac();
+const aesCmac = new AesCmac(new Uint8Array(16));
 
 async function processMetadataPacket(packet) {
     // Check if it's a metadata packet
