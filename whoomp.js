@@ -2,7 +2,7 @@ import { PacketType, MetadataType, EventNumber, CommandNumber, WhoopPacket } fro
 import { AsyncQueue } from "./queue.js";
 import * as ui from "./ui.js";
 import { FileStreamHandler } from "./file.js";
-import * as aesCmac from './crypto/aesCmac.js';   // any CMAC lib
+import { aesCmac } from 'https://cdn.jsdelivr.net/npm/aes-cmac@3.1.0/dist/esm/index.js';
 
 const WHOOP_SERVICE = "61080001-8d6d-82b8-614a-1c8cb0f8dcc6";
 const WHOOP_CHAR_CMD_TO_STRAP = "61080002-8d6d-82b8-614a-1c8cb0f8dcc6";
