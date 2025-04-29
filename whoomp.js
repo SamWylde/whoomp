@@ -127,57 +127,87 @@ async function processMetadataPacket(packet) {
 }
 
 /**
- * Connect to the WHOOP device and setup notifications
+ * Connect to the WHOOP strap, authenticate, and wire up notifications.
+ * Pass { debug: true } to see a grouped, timestamped trace in DevTools.
+ *
+ * @param {Object} [opts]
+ * @param {boolean} [opts.debug=false] – verbose logging toggle
+ * @returns {Promise<boolean>}  true on success, false on failure
  */
-async function connectToWhoop() {
-    try {
-        device = await navigator.bluetooth.requestDevice({
-            filters: [{ services: [WHOOP_SERVICE] }],
-            optionalServices: [
-    WHOOP_SERVICE,
-    0x181E        // Bond Management Service
-  ]
-        });
+async function connectToWhoop({ debug = false } = {}) {
+  if (debug) console.groupCollapsed('[WHOOP] connectToWhoop()');
 
-        server = await device.gatt.connect();
-        console.log(`connected to WHOOP device!`);
+  try {
+    /* 1️⃣  Pick a device from the chooser */
+    console.time('[WHOOP] requestDevice');
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [WHOOP_SERVICE] }],
+      optionalServices: [WHOOP_SERVICE, 0x181E]        // Bond Management
+    });
+    console.timeEnd('[WHOOP] requestDevice');
+    if (debug) console.log('Device selected', { id: device.id, name: device.name });
 
-        const service = await server.getPrimaryService(WHOOP_SERVICE);
-        characteristics.cmdToStrap = await service.getCharacteristic(WHOOP_CHAR_CMD_TO_STRAP);
-        characteristics.cmdFromStrap = await service.getCharacteristic(WHOOP_CHAR_CMD_FROM_STRAP);
-        characteristics.eventsFromStrap = await service.getCharacteristic(WHOOP_CHAR_EVENTS_FROM_STRAP);
-        characteristics.dataFromStrap = await service.getCharacteristic(WHOOP_CHAR_DATA_FROM_STRAP);
+    /* 2️⃣  Establish GATT session */
+    console.time('[WHOOP] gatt.connect');
+    server = await device.gatt.connect();
+    console.timeEnd('[WHOOP] gatt.connect');
+    if (debug) console.log('✅  GATT connected');
 
-        // Setting up notification handlers
-        await characteristics.cmdFromStrap.startNotifications();
-        await characteristics.eventsFromStrap.startNotifications();
-        await characteristics.dataFromStrap.startNotifications();
+    /* 3️⃣  Primary service & characteristics */
+    const service = await server.getPrimaryService(WHOOP_SERVICE);
+    if (debug) console.log('Service UUID →', service.uuid);
 
-        await performAuth();     // << IMPORTANT – DO NOT MOVE OR REMOVE
+    console.time('[WHOOP] getCharacteristics');
+    characteristics.cmdToStrap      = await service.getCharacteristic(WHOOP_CHAR_CMD_TO_STRAP);
+    characteristics.cmdFromStrap    = await service.getCharacteristic(WHOOP_CHAR_CMD_FROM_STRAP);
+    characteristics.eventsFromStrap = await service.getCharacteristic(WHOOP_CHAR_EVENTS_FROM_STRAP);
+    characteristics.dataFromStrap   = await service.getCharacteristic(WHOOP_CHAR_DATA_FROM_STRAP);
+    console.timeEnd('[WHOOP] getCharacteristics');
 
-        characteristics.cmdFromStrap.addEventListener('characteristicvaluechanged', handleCmdNotification);
-        characteristics.eventsFromStrap.addEventListener('characteristicvaluechanged', handleEventsNotification);
-        characteristics.dataFromStrap.addEventListener('characteristicvaluechanged', handleDataNotification);
+    /* 4️⃣  Enable notifications */
+    console.time('[WHOOP] startNotifications');
+    await characteristics.cmdFromStrap.startNotifications();
+    await characteristics.eventsFromStrap.startNotifications();
+    await characteristics.dataFromStrap.startNotifications();
+    console.timeEnd('[WHOOP] startNotifications');
 
-        // Register the disconnect event handler
-        device.addEventListener('gattserverdisconnected', handleDisconnect);
+    /* 5️⃣  Mutual authentication */
+    if (debug) console.log('→  performAuth()');
+    await performAuth();
+    if (debug) console.log('✅  Auth success');
 
-        // Start periodic battery updates
-        await startBatteryUpdates();
+    /* 6️⃣  Register listeners (after auth) */
+    characteristics.cmdFromStrap.addEventListener(
+      'characteristicvaluechanged', handleCmdNotification);
+    characteristics.eventsFromStrap.addEventListener(
+      'characteristicvaluechanged', handleEventsNotification);
+    characteristics.dataFromStrap.addEventListener(
+      'characteristicvaluechanged', handleDataNotification);
 
-        // Get version and wrist status
-        await sendReportVersion();
-        await sendHelloHarvard();
+    /* 7️⃣  Handle disconnects */
+    device.addEventListener('gattserverdisconnected', handleDisconnect);
 
-        // Show elements
-        ui.hideElements(false);
+    /* 8️⃣  Kick-off periodic/initial commands */
+    await startBatteryUpdates();
+    await sendReportVersion();
+    await sendHelloHarvard();
 
-        return true;
-    } catch (error) {
-        console.error(error.message);
-        return false;
+    /* 9️⃣  Reveal UI */
+    ui.hideElements(false);
+
+    if (debug) {
+      console.log('🎉  WHOOP strap ready');
+      console.groupEnd();
     }
+    return true;
+
+  } catch (err) {
+    console.error('[WHOOP] connectToWhoop error:', err);
+    if (debug) console.groupEnd();
+    return false;
+  }
 }
+
 
 /**
  * Disconnect from the WHOOP and cleanup
@@ -618,7 +648,7 @@ const connectButton = document.getElementById('connectButton');
 connectButton.addEventListener('click', async () => {
     if (connectButton.textContent.trim() === 'Connect WHOOP') {
         // Only if this is successful do we want to change over
-        if (await connectToWhoop()) {
+        if (await connectToWhoop{ debug: true }) {
             connectButton.textContent = 'Disconnect';
             connectButton.classList.replace('bg-blue-500', 'bg-red-500');
             connectButton.classList.replace('hover:bg-blue-700', 'hover:bg-red-700');
