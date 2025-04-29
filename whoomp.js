@@ -265,23 +265,42 @@ function handleDataNotification(event) {
 
     if (packet.type == PacketType.REALTIME_DATA) {
         // Get the heart rate and update the UI
-        ui.updateHeartRate(packet.data[5]);
+        const heartRate = packet.data[5];
+        ui.updateHeartRate(heartRate);
+        
+        // If packet is long enough, might contain temperature and SpO2
+        // This is speculative based on bWanShiTong's findings
+        if (packet.data.length > 10) {
+            // Check if byte 11 might be temperature
+            if (packet.data[11] > 0 && packet.data[11] < 50) {
+                // Potentially temperature (needs verification)
+                ui.updateTemperature(packet.data[11]);
+            }
+            
+            // Check if byte 12 might be SpO2
+            if (packet.data.length > 11 && packet.data[12] > 50 && packet.data[12] <= 100) {
+                // Potentially SpO2 (needs verification)
+                ui.updateSpO2(packet.data[12]);
+            }
+        }
     } else if (packet.type == PacketType.METADATA) {
-        // Add to meta queue
+        // Add to meta queue (needed for existing download functionality)
         metaQueue.enqueue(packet);
-
-  // Also process with new enhanced handler
-    processMetadataPacket(packet);
+        
+        // Also process with new enhanced handler
+        processMetadataPacket(packet);
     } else if (packet.type == PacketType.HISTORICAL_DATA) {
         console.log(`historical data`);
         historicalDataLogger.streamData(value);
+        
+        // Also try to parse heart rate from historical data
+        const heartRate = packet.data[5];
+        console.log(`Historical heart rate: ${heartRate}`);
     } else if (packet.type == PacketType.CONSOLE_LOGS) {
         let message = processLogData(packet.data);
         ui.logToTerminal(message);
         // consoleLogger.streamData(log);
     }
-
-    //console.log(`DATA Notification received: ${value.join(' ')}`);
 }
 
 function processLogData(data) {
