@@ -19,6 +19,23 @@ export function showNotification(message) {
     }, 2500);
 }
 
+// Add temperature display function
+export function updateTemperature(temperature) {
+    const tempElement = document.getElementById("temperature");
+    if (tempElement) {
+        tempElement.textContent = temperature.toFixed(1);
+    }
+}
+
+// Add SpO2 display function
+export function updateSpO2(spO2) {
+    const spO2Element = document.getElementById("spO2");
+    if (spO2Element) {
+        spO2Element.textContent = spO2;
+    }
+}
+
+
 export function logToTerminal(message) {
     const terminalCardElement = document.getElementById("terminalCard");
     terminalCardElement.classList.remove("hidden");
