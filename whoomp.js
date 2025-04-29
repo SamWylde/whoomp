@@ -52,23 +52,38 @@ async function sendRawHistoricalData() {
     }
 }
 
-async function performAuth() {
-  /* Step A */
-  await writeCmd(CommandNumber.START_SESSION, []);
-  /* Step B */
-  const challPkt = await cmdResponseQueue.dequeue();
-  const rand     = challPkt.data.slice(0,16);
+async function performAuth(debug = false) {
+  if (debug) console.groupCollapsed('[AUTH] performAuth');
 
-  /* build key from serial */
+  // Step A – open a session
+  if (debug) console.log('→ START_SESSION');
+  await writeCmd(CommandNumber.START_SESSION);
+
+  // Step B – receive the 16‑byte challenge
+  const challPkt = await cmdResponseQueue.dequeue();
+  if (debug) console.log('Challenge pkt', challPkt);
+  const rand = challPkt.data.slice(0, 16);
+  if (debug) console.log('rand', [...rand].map(b => b.toString(16).padStart(2, '0')).join(' '));
+
+  // Build CMAC key from reversed serial (padded to 16 bytes)
   const dis         = await server.getPrimaryService('device_information');
   const serialChar  = await dis.getCharacteristic('serial_number_string');
-  const serialStr   = new TextDecoder().decode(await serialChar.readValue());
-  const key         = new TextEncoder().encode(serialStr.slice(0,16).split('').reverse().join(''));
+  const serialStr   = new TextDecoder().decode(await serialChar.readValue()).trim();
+  const serial16    = serialStr.padEnd(16, '\0').slice(0, 16);
+  const key         = new TextEncoder().encode([...serial16].reverse().join(''));
+  if (debug) console.log('serial', serialStr, 'key', [...key].map(b => b.toString(16).padStart(2, '0')).join(' '));
 
-  /* Step C */
-  const r          = new Uint8Array(await aesCmac.cmac(key, rand));
+  // Step C – calculate & send CMAC response
+  const r = new Uint8Array(await aesCmac.cmac(key, rand));
+  if (debug) console.log('CMAC response', [...r].map(b => b.toString(16).padStart(2, '0')).join(' '));
   await writeCmd(CommandNumber.SESSION_RESPONSE, r);
+
+  if (debug) {
+    console.log('← SESSION_RESPONSE');
+    console.groupEnd();
+  }
 }
+
 
 const cmdResponseQueue = new AsyncQueue();  
 
@@ -277,13 +292,12 @@ function handleCmdNotification(event) {
     let packet = WhoopPacket.fromData(value);
     let dataView = new DataView(packet.data.buffer, packet.data.byteOffset, packet.data.byteLength);
 
-if (packet.type === PacketType.COMMAND) {
-// Accept both legacy (0x23) and new (0x24) response types
+/* Accept both 0x23 (legacy) and 0x24 (new) immediately */
 if (packet.type === PacketType.COMMAND ||
 packet.type === PacketType.COMMAND_RESPONSE) {
 cmdResponseQueue.enqueue(packet);
 }
-}
+
     if (packet.cmd == CommandNumber.GET_BATTERY_LEVEL) {
         let rawBatteryLevel = dataView.getUint16(2, true); // Little-endian
         let batteryLevel = rawBatteryLevel / 10.0;
